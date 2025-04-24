@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orienteering Route Optimizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            background-color: #f5f5f5;
+        }
+
+        #app-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Initial welcome screen */
+        #welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+        }
+
+        .welcome-panel {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .welcome-panel h1 {
+            margin-bottom: 20px;
+            color: #2d8632;
+        }
+
+        .welcome-panel p {
+            margin-bottom: 25px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .welcome-panel button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .welcome-panel button:hover {
+            background-color: #388E3C;
+        }
+
+        .donation-text {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Map container */
+        #map-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none; /* Initially hidden */
+            background-color: #e0e0e0; /* Background for when map is panned */
+        }
+
+        #mapCanvas {
+            display: block; /* Prevents extra space below canvas */
+            /* Cursor style will be managed by JS */
+        }
+
+        /* Controls panel */
+        #controls-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none; /* Initially hidden */
+        }
+
+        .control-section {
+            margin-bottom: 25px;
+        }
+
+        .control-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .radio-options {
+            display: flex;
+            gap: 15px;
+        }
+
+        .radio-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #388E3C;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .button-secondary {
+            background-color: #f1f1f1;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .button-secondary:hover {
+            background-color: #e1e1e1;
+        }
+
+        .button-warning {
+            background-color: #f44336;
+        }
+        .button-warning:hover,
+        .button-warning.active { /* Style for when adding controls is active */
+             background-color: #d32f2f;
+        }
+
+
+        /* Control points list */
+        .control-points-list {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        .control-point-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        .control-point-item:last-child {
+            border-bottom: none;
+        }
+
+        .control-point-item .delete-btn {
+            background: none;
+            border: none;
+            color: #f44336;
+            cursor: pointer;
+            width: auto;
+            padding: 0;
+            margin: 0;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .status div {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+
+        /* Instructions overlay */
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            pointer-events: none;
+            z-index: 5;
+            max-width: 300px;
+            font-size: 14px;
+        }
+
+        /* Zoom controls */
+        #zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 5;
+        }
+
+        #zoom-controls button {
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* File input hidden */
+        #fileInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="welcome-screen">
+            <div class="welcome-panel">
+                <h1>Orienteering Route Optimizer</h1>
+                <p>Upload your orienteering map to find optimal routes between controls. This tool analyzes terrain types based on map colors to calculate the fastest path.</p>
+                <button id="loadInitialMapBtn">Select Map</button>
+                <div class="donation-text">
+                    If you find this tool useful, please consider <a href="#" id="donation-link" target="_blank" rel="noopener noreferrer">supporting its development</a>.
+                </div>
+            </div>
+        </div>
+
+        <div id="map-container">
+            <canvas id="mapCanvas"></canvas>
+            <div id="instructions">Select a map to begin</div>
+
+            <div id="zoom-controls">
+                <button id="zoom-in">+</button>
+                <button id="zoom-out">−</button>
+                <button id="zoom-reset">↻</button>
+            </div>
+        </div>
+
+        <div id="controls-panel">
+            <div class="control-section">
+                <h3>Map Settings</h3>
+                <div class="radio-group">
+                    <label>Map Type:</label>
+                    <div class="radio-options">
+                        <label><input type="radio" name="mapType" value="Forest" checked> Forest</label>
+                        <label><input type="radio" name="mapType" value="Sprint"> Sprint</label>
+                    </div>
+                </div>
+
+                <div class="radio-group">
+                    <label>Contours:</label>
+                    <div class="radio-options">
+                        <label><input type="radio" name="contours" value="2.5m" checked> 2.5m</label>
+                        <label><input type="radio" name="contours" value="5m"> 5m</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Controls</h3>
+                <button id="addControlBtn" disabled>Add Control Point</button>
+                <button id="resetControlsBtn" class="button-secondary" disabled>Reset Control Points</button>
+
+                <div class="control-points-list" id="controlPointsList">
+                    </div>
+                <button id="findRouteBtn" disabled>Find Optimal Route</button>
+            </div>
+
+            <div class="control-section">
+                <h3>Actions</h3>
+                <button id="newMapBtn" class="button-secondary" disabled>Load New Map</button>
+                <button id="resetBtn" class="button-warning" disabled>Reset All</button>
+            </div>
+
+            <div class="status">
+                <div id="progress">Progress: Waiting to start</div>
+                <div id="routeCost">Total route cost: N/A</div>
+                <div id="routeTime">Estimated time: N/A</div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+
+    <script>
+        // --- Configuration ---
+        const mainColors = {
+            0: "white", 1: "yellow", 2: "orange", 3: "light_green", 4: "green",
+            5: "dark_green", 6: "light_blue", 7: "blue", 8: "olive", 9: "black",
+            10: "brown1", 11: "brown2", 12: "brown3", 13: "purple1", 14: "purple2",
+            15: "pink1", 16: "pink2", 17: "red"
+        };
+
+        const mainColorValues = {
+            "white": [255, 255, 255], "yellow": [250, 190, 75], "orange": [253, 217, 148],
+            "light_green": [196, 230, 190], "green": [140, 205, 130], "dark_green": [40, 170, 80],
+            "light_blue": [120, 220, 230], "blue": [0, 160, 215], "olive": [160, 158, 58],
+            "black": [40, 40, 40], "brown1": [190, 105, 40], "brown2": [180, 172, 112],
+            "brown3": [130, 140, 75], "purple1": [136, 0, 160], "purple2": [150, 70, 140],
+            "pink1": [215, 0, 120], "pink2": [195, 31, 255], "red": [135, 10, 50]
+        };
+
+        let colorCosts = {}; // Will be populated by updateMapTypeSettings
+
+        // --- UI Elements ---
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const mapContainer = document.getElementById('map-container');
+        const controlsPanel = document.getElementById('controls-panel');
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Use { alpha: false } for potential performance gain
+        const fileInput = document.getElementById('fileInput');
+        const loadInitialMapBtn = document.getElementById('loadInitialMapBtn');
+        const addControlBtn = document.getElementById('addControlBtn');
+        const resetControlsBtn = document.getElementById('resetControlsBtn');
+        const findRouteBtn = document.getElementById('findRouteBtn');
+        const newMapBtn = document.getElementById('newMapBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const controlPointsList = document.getElementById('controlPointsList');
+        const zoomInBtn = document.getElementById('zoom-in');
+        const zoomOutBtn = document.getElementById('zoom-out');
+        const zoomResetBtn = document.getElementById('zoom-reset');
+        const instructions = document.getElementById('instructions');
+        const progressElement = document.getElementById('progress');
+        const routeCostElement = document.getElementById('routeCost');
+        const routeTimeElement = document.getElementById('routeTime');
+
+        // --- App State ---
+        let mapImage = null;
+        let controlPoints = []; // Stores {x, y, number} in map coordinates
+        let routes = [];        // Stores calculated routes { from, to, path, cost }
+        let isAddingControls = false; // State flag for adding controls mode
+        let terrainGrid = null; // Stores terrain type ID for processed area
+        let terrainCosts = null;// Stores cost per pixel for processed area
+        let currentScale = 1;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false; // State flag for panning the map
+        let dragStartX = 0;     // Screen coordinates where drag started
+        let dragStartY = 0;
+
+        let originalImageWidth = 0;
+        let originalImageHeight = 0;
+        let croppedAreaOffset = { x: 0, y: 0 }; // Offset of the processed area relative to original map
+
+        // --- Constants ---
+        const MIN_ZOOM = 0.1;
+        const MAX_ZOOM = 10;
+        const CONTROL_POINT_RADIUS = 8; // Radius in screen pixels
+        const CONTROL_POINT_COLOR = 'rgba(255, 0, 0, 0.8)'; // Slightly transparent red
+        const CONTROL_POINT_TEXT_COLOR = 'white';
+
+        // --- Initialization ---
+        function init() {
+            loadInitialMapBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+
+            addControlBtn.addEventListener('click', toggleAddingControls);
+            resetControlsBtn.addEventListener('click', resetControls);
+            findRouteBtn.addEventListener('click', findOptimalRoute);
+            newMapBtn.addEventListener('click', loadNewMap);
+            resetBtn.addEventListener('click', resetAll);
+
+            zoomInBtn.addEventListener('click', () => zoomMapAtCenter(1.2));
+            zoomOutBtn.addEventListener('click', () => zoomMapAtCenter(0.8));
+            zoomResetBtn.addEventListener('click', resetZoomAndPan);
+
+            // Main interaction listeners on canvas
+            canvas.addEventListener('mousedown', handleMouseDown); // Unified handler
+            canvas.addEventListener('mousemove', handleMouseMove); // Unified handler
+            canvas.addEventListener('mouseup', handleMouseUp);     // Unified handler
+            canvas.addEventListener('mouseleave', handleMouseLeave); // Handle leaving canvas
+            canvas.addEventListener('wheel', handleWheel, { passive: false }); // Prevent page scroll
+            canvas.addEventListener('click', handleCanvasClick); // Separate click handler
+
+            // Resize canvas listener
+            window.addEventListener('resize', resizeCanvas);
+
+            // Set initial costs
+            updateMapTypeSettings();
+
+            // Donation link placeholder
+            document.getElementById('donation-link').href = "https://www.paypal.com"; // Replace with your actual PayPal link
+        }
+
+        // --- Map Loading and Setup ---
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file || !file.type.startsWith('image/')) {
+                alert("Please select a valid image file.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    mapImage = img;
+                    originalImageWidth = img.width;
+                    originalImageHeight = img.height;
+
+                    resetAllState(); // Reset state variables
+
+                    // Show map and controls
+                    welcomeScreen.style.display = 'none';
+                    mapContainer.style.display = 'block';
+                    controlsPanel.style.display = 'block';
+
+                    resizeCanvas(); // Set initial canvas size
+                    resetZoomAndPan(); // Fit map initially
+
+                    // Enable buttons
+                    addControlBtn.disabled = false;
+                    newMapBtn.disabled = false;
+                    resetBtn.disabled = false;
+                    resetControlsBtn.disabled = true; // Disabled until points exist
+
+                    updateInstructions("Click 'Add Control Point' to start adding controls");
+                    setCanvasCursor(); // Set initial cursor
+                };
+                img.onerror = function() {
+                    alert("Error loading image file.");
+                }
+                img.src = event.target.result;
+            };
+            reader.onerror = function() {
+                alert("Error reading file.");
+            }
+            reader.readAsDataURL(file);
+            fileInput.value = ''; // Reset file input
+        }
+
+        function resizeCanvas() {
+            const controlsWidth = controlsPanel.offsetWidth;
+            const newWidth = window.innerWidth - controlsWidth;
+            const newHeight = window.innerHeight;
+
+            // Check if size actually changed to avoid unnecessary redraws
+            if (canvas.width !== newWidth || canvas.height !== newHeight) {
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                // No need to set style width/height if canvas dimensions match window
+                redrawCanvas();
+            }
+        }
+
+
+        function resetZoomAndPan() {
+            if (!mapImage) return;
+
+            const scaleX = canvas.width / originalImageWidth;
+            const scaleY = canvas.height / originalImageHeight;
+            currentScale = Math.min(scaleX, scaleY, 1); // Don't zoom larger than 1:1 initially
+
+            // Center the image
+            translateX = (canvas.width - originalImageWidth * currentScale) / 2;
+            translateY = (canvas.height - originalImageHeight * currentScale) / 2;
+
+            redrawCanvas();
+        }
+
+        // --- Coordinate Transformation ---
+        function screenToMapCoords(screenX, screenY) {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = screenX - rect.left;
+            const canvasY = screenY - rect.top;
+            const mapX = (canvasX - translateX) / currentScale;
+            const mapY = (canvasY - translateY) / currentScale;
+            return { x: mapX, y: mapY };
+        }
+
+        function mapToScreenCoords(mapX, mapY) {
+            const canvasX = mapX * currentScale + translateX;
+            const canvasY = mapY * currentScale + translateY;
+            const rect = canvas.getBoundingClientRect();
+            return { x: canvasX + rect.left, y: canvasY + rect.top };
+        }
+
+        // --- Drawing ---
+        function redrawCanvas() {
+            // Use requestAnimationFrame for smoother rendering
+            requestAnimationFrame(() => {
+                 if (!mapImage) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    return;
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.translate(translateX, translateY);
+                ctx.scale(currentScale, currentScale);
+
+                // Draw Map
+                ctx.drawImage(mapImage, 0, 0, originalImageWidth, originalImageHeight);
+
+                // Draw Calculated Routes
+                if (routes.length > 0) {
+                    drawCalculatedRoutes(routes, croppedAreaOffset.x, croppedAreaOffset.y);
+                }
+
+                // Draw Control Points
+                controlPoints.forEach(drawControlPoint);
+
+                ctx.restore();
+            });
+        }
+
+        function drawControlPoint(point) {
+            const radius = CONTROL_POINT_RADIUS / currentScale; // Adjust size for zoom
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = CONTROL_POINT_COLOR;
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1 / currentScale;
+            ctx.stroke();
+
+            ctx.fillStyle = CONTROL_POINT_TEXT_COLOR;
+            const fontSize = Math.max(8, 12 / currentScale); // Ensure minimum size
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(point.number, point.x, point.y);
+        }
+
+        function drawTemporaryAreaRect() {
+            if (areaPoints.length === 1 && currentMousePos) {
+                const start = areaPoints[0];
+                const current = currentMousePos;
+                ctx.strokeStyle = 'rgba(0, 0, 255, 0.7)';
+                ctx.lineWidth = 2 / currentScale;
+                ctx.strokeRect(start.x, start.y, current.x - start.x, current.y - start.y);
+            }
+        }
+
+
+        function drawCalculatedRoutes(calculatedRoutes, offsetX, offsetY) {
+             calculatedRoutes.forEach((route, index) => {
+                if (!route.path || route.path.length < 2) return;
+
+                const path = route.path;
+                const hue = (index * 40) % 360;
+                const routeColor = `hsl(${hue}, 90%, 50%)`;
+
+                ctx.beginPath();
+                ctx.moveTo(path[0].x + offsetX, path[0].y + offsetY);
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(path[i].x + offsetX, path[i].y + offsetY);
+                }
+                ctx.strokeStyle = routeColor;
+                ctx.lineWidth = 3 / currentScale;
+                ctx.lineCap = 'round'; // Nicer line ends
+                ctx.lineJoin = 'round'; // Nicer line joins
+                ctx.stroke();
+            });
+        }
+
+
+        // --- Unified Mouse Handlers ---
+
+        function handleMouseDown(e) {
+             if (e.button !== 0) return; // Only left clicks
+
+             if (isAddingControls) {
+                 // In adding mode, mousedown doesn't do anything itself,
+                 // the click handler does the work.
+           
+             } else {
+                 // Default: Start panning
+                 isDragging = true;
+                 dragStartX = e.clientX;
+                 dragStartY = e.clientY;
+                 setCanvasCursor(); // Set to grabbing
+             }
+        }
+
+        function handleMouseMove(e) {
+            if (isDragging) {
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                translateX += dx;
+                translateY += dy;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                redrawCanvas();
+            } else if (isDrawingPolygon && isAwaitingSecondClick && areaPoints.length === 1) {
+                currentMousePos = screenToMapCoords(e.clientX, e.clientY);
+                redrawCanvas();
+            }
+        }
+
+
+        function handleMouseUp(e) {
+             if (e.button !== 0) return;
+
+             if (isDragging) {
+                 isDragging = false;
+                 setCanvasCursor(); // Reset cursor
+        }}
+
+        function handleMouseLeave(e) {
+            // Stop dragging or drawing if mouse leaves canvas
+            if (isDragging) {
+                isDragging = false;
+                setCanvasCursor();
+            }
+        }
+
+        function handleCanvasClick(e) {
+            if (e.button !== 0) return;
+
+            const { x, y } = screenToMapCoords(e.clientX, e.clientY);
+
+            // Control adding logic remains unchanged
+            if (isAddingControls) {
+                const controlNumber = controlPoints.length + 1;
+                const newPoint = { x, y, number: controlNumber };
+                controlPoints.push(newPoint);
+
+                updateControlPointsList();
+                redrawCanvas();
+
+                resetControlsBtn.disabled = false;
+            }
+        }
+
+
+        // --- Map Interaction (Zoom) ---
+        function handleWheel(e) {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15; // Adjusted factor
+            zoomMapAtPoint(zoomFactor, e.clientX, e.clientY);
+        }
+
+        function zoomMapAtPoint(factor, screenX, screenY) {
+            const { x: mapXBefore, y: mapYBefore } = screenToMapCoords(screenX, screenY);
+
+            const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentScale * factor));
+            if (newScale === currentScale) return;
+
+            // Calculate scale change ratio
+            const scaleRatio = newScale / currentScale;
+            currentScale = newScale;
+
+            // Adjust translation: move the map so the point under the cursor stays fixed
+            // T' = S * T + (1 - S) * P
+            // Where T is translation, S is scaleRatio, P is cursor position in canvas coords
+            const rect = canvas.getBoundingClientRect();
+            const cursorCanvasX = screenX - rect.left;
+            const cursorCanvasY = screenY - rect.top;
+
+            translateX = scaleRatio * translateX + (1 - scaleRatio) * cursorCanvasX;
+            translateY = scaleRatio * translateY + (1 - scaleRatio) * cursorCanvasY;
+
+            redrawCanvas();
+        }
+
+        function zoomMapAtCenter(factor) {
+             const centerX = canvas.width / 2 + canvas.getBoundingClientRect().left;
+             const centerY = canvas.height / 2 + canvas.getBoundingClientRect().top;
+             zoomMapAtPoint(factor, centerX, centerY);
+        }
+
+        // --- Control Point Management ---
+        function toggleAddingControls() {
+             if (isAddingControls) {
+                stopAddingControls();
+            } else {
+                startAddingControls();
+            }
+        }
+
+        function startAddingControls() {
+            console.log("Starting Add Controls mode"); // DEBUG LOG
+            isAddingControls = true;
+            isAreaSelected = false;
+            areaPoints = [];
+            routes = []; // Clear previous routes if adding points again
+
+            setCanvasCursor(); // Set crosshair cursor
+            canvas.addEventListener('click', handleCanvasClick);
+
+
+            addControlBtn.textContent = "Finish Adding Controls";
+            addControlBtn.classList.add('active', 'button-warning');
+
+            // Disable area selection while adding points
+            findRouteBtn.disabled = true; // Can't find route until finished adding
+
+            updateInstructions("Click on the map to add control points");
+        }
+
+        function stopAddingControls() {
+             console.log("Stopping Add Controls mode"); // DEBUG LOG
+             isAddingControls = false;
+             setCanvasCursor(); // Set appropriate cursor (grab)
+
+             addControlBtn.textContent = "Add Control Point";
+             addControlBtn.classList.remove('active', 'button-warning');
+             canvas.removeEventListener('click', handleCanvasClick);
+
+
+             // Re-enable buttons if applicable
+             const enoughPoints = controlPoints.length >= 2;
+             findRouteBtn.disabled = !enoughPoints;
+
+             updateInstructions(enoughPoints ? "Controls added. Click 'Find Optimal Route'." : "Add at least two control points.");
+        }
+
+        function updateControlPointsList() {
+            controlPointsList.innerHTML = '';
+            controlPoints.forEach((point, index) => {
+                const item = document.createElement('div');
+                item.className = 'control-point-item';
+                item.innerHTML = `
+                    Ctrl ${point.number} <span style="font-size:0.8em; color: #555;">(X:${point.x.toFixed(0)},Y:${point.y.toFixed(0)})</span>
+                    <button class="delete-btn" data-index="${index}" title="Delete Control ${point.number}">×</button>
+                `;
+                controlPointsList.appendChild(item);
+
+                item.querySelector('.delete-btn').addEventListener('click', function() {
+                    deleteControlPoint(parseInt(this.getAttribute('data-index')));
+                });
+            });
+            // Scroll to bottom of list if it's long
+            controlPointsList.scrollTop = controlPointsList.scrollHeight;
+        }
+
+        function deleteControlPoint(indexToDelete) {
+             controlPoints.splice(indexToDelete, 1);
+             controlPoints.forEach((p, i) => { p.number = i + 1; });
+
+             isAreaSelected = false;
+             areaPoints = [];
+             routes = [];
+
+             updateControlPointsList();
+             redrawCanvas();
+
+             const enoughPoints = controlPoints.length >= 2;
+             findRouteBtn.disabled = true;
+             resetControlsBtn.disabled = controlPoints.length === 0;
+             updateInstructions(enoughPoints ? "Control deleted. Select Analysis Area again." : "Add at least two control points.");
+        }
+
+        function resetControls() {
+            controlPoints = [];
+            routes = [];
+            areaPoints = [];
+            updateControlPointsList();
+            redrawCanvas();
+            findRouteBtn.disabled = true;
+            resetControlsBtn.disabled = true;
+            updateInstructions("Controls reset. Click 'Add Control Point' to start.");
+        }
+
+
+        // --- Route Calculation ---
+        function findOptimalRoute() {
+            if (controlPoints.length < 2) {
+                 alert("Please add at least two control points.");
+                 return;
+            }
+
+            updateInstructions("Processing map and calculating routes...");
+            progressElement.textContent = "Progress: Starting...";
+            routeCostElement.textContent = "Total route cost: N/A";
+            routeTimeElement.textContent = "Estimated time: N/A";
+            findRouteBtn.disabled = true; // Disable while processing
+            addControlBtn.disabled = true;
+            resetControlsBtn.disabled = true;
+
+            setTimeout(() => {
+                processSelectedArea()
+                    .then(() => {
+                        updateInstructions("Route calculation complete! Pan and zoom to view.");
+                    })
+                    .catch(error => {
+                        console.error("Error during route calculation:", error);
+                        alert(`An error occurred during route calculation: ${error.message}`);
+                        progressElement.textContent = "Progress: Error";
+                    })
+                    .finally(() => {
+                        // Re-enable buttons regardless of success/failure
+                         findRouteBtn.disabled = false;
+                         addControlBtn.disabled = false;
+                         resetControlsBtn.disabled = controlPoints.length === 0;
+                    });
+            }, 50);
+        }
+
+        function processSelectedArea() {
+            return new Promise((resolve, reject) => {
+                if (controlPoints.length < 2) {
+                    return reject(new Error("Need at least two control points to define an analysis area."));
+                }
+
+                try {
+                    // --- New Area Calculation Start ---
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+                    // Find bounding box of control points
+                    for (const point of controlPoints) {
+                        minX = Math.min(minX, point.x);
+                        minY = Math.min(minY, point.y);
+                        maxX = Math.max(maxX, point.x);
+                        maxY = Math.max(maxY, point.y);
+                    }
+
+                    // Define padding (e.g., 50 pixels)
+                    const paddingPixels = 50;
+                    // Or calculate padding (e.g., 8% of the smaller dimension of the map)
+                    // const paddingPercent = 0.08;
+                    // const paddingPixels = Math.min(originalImageWidth, originalImageHeight) * paddingPercent;
+
+
+                    // Apply padding and clamp to map boundaries
+                    minX = Math.max(0, Math.floor(minX - paddingPixels));
+                    minY = Math.max(0, Math.floor(minY - paddingPixels));
+                    maxX = Math.min(originalImageWidth, Math.ceil(maxX + paddingPixels));
+                    maxY = Math.min(originalImageHeight, Math.ceil(maxY + paddingPixels));
+                    // --- New Area Calculation End ---
+
+
+                    const width = maxX - minX;
+                    const height = maxY - minY;
+
+                    if (width <= 0 || height <= 0) {
+                        // This might happen if points are identical or padding is too large/negative
+                        throw new Error("Calculated processing area has zero or negative dimensions.");
+                    }
+
+                    croppedAreaOffset = { x: minX, y: minY }; // Store offset for drawing routes later
+
+                    progressElement.textContent = "Progress: Cropping map...";
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = width; tempCanvas.height = height;
+                    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                    // Draw the calculated portion of the map onto the temporary canvas
+                    tempCtx.drawImage(
+                        mapImage,
+                        minX, minY, // Source rectangle top-left (from original map)
+                        width, height, // Source rectangle dimensions
+                        0, 0, // Destination canvas top-left
+                        width, height // Destination canvas dimensions
+                    );
+                    const imageData = tempCtx.getImageData(0, 0, width, height);
+
+
+                    // Adjust control point coordinates relative to the cropped area
+                    const adjustedControlPoints = controlPoints.map(point => ({
+                        x: Math.round(point.x - minX),
+                        y: Math.round(point.y - minY),
+                        number: point.number
+                    }));
+
+
+                    progressElement.textContent = "Progress: Analyzing terrain...";
+                    updateMapTypeSettings(); // Ensure costs are up-to-date
+
+
+                    // Process the cropped image data to get terrain grid and costs
+                    processImage(imageData, width, height)
+                        .then(grid => {
+                            terrainGrid = grid; // Store the resulting terrain grid
+                            progressElement.textContent = "Progress: Calculating terrain costs...";
+                            terrainCosts = calculateTerrainCosts(terrainGrid, width, height); // Calculate costs per pixel
+                            // Find routes between the adjusted control points using the terrain costs
+                            return findRoutesBetweenControls(adjustedControlPoints, terrainCosts, width, height);
+                        })
+                        .then(calculatedRoutes => {
+                            progressElement.textContent = "Progress: Finalizing...";
+                            routes = calculatedRoutes; // Store the calculated routes
+                            // Calculate total cost and estimated time
+                            let totalCost = routes.reduce((sum, route) => sum + (route.cost || 0), 0);
+
+
+                            progressElement.textContent = "Progress: Complete";
+                            routeCostElement.textContent = `Total route cost: ${totalCost < Infinity ? totalCost.toFixed(1) : 'N/A'}`;
+                            routeTimeElement.textContent = `Estimated time: ${totalCost < Infinity ? Math.round(totalCost / 180) : 'N/A'} min`;
+
+
+                            redrawCanvas(); // Redraw the main canvas to show the routes
+                            resolve(); // Indicate success
+                        })
+                        .catch(reject); // Pass any errors up
+                } catch (error) {
+                    reject(error); // Catch synchronous errors
+                }
+            });
+        }
+
+        function findRoutesBetweenControls(adjustedControlPoints, terrainCosts, width, height) {
+            return new Promise(async (resolve, reject) => { // Make async to use await
+                const calculatedRoutes = [];
+                let overallSuccess = true;
+
+                for (let i = 0; i < adjustedControlPoints.length - 1; i++) {
+                    const startPoint = adjustedControlPoints[i];
+                    const endPoint = adjustedControlPoints[i + 1];
+
+                    progressElement.textContent = `Progress: Finding route ${startPoint.number} -> ${endPoint.number}...`;
+
+                    try {
+                         // Await the promise from A*
+                        const result = await calculateLowestCostPath(terrainCosts, startPoint, endPoint, width, height);
+                        if (result.cost === Infinity) {
+                             console.warn(`No path found from control ${startPoint.number} to ${endPoint.number}`);
+                             overallSuccess = false; // Mark that at least one segment failed
+                        }
+                         calculatedRoutes.push({
+                            from: startPoint.number, to: endPoint.number,
+                            path: result.path, cost: result.cost
+                        });
+                    } catch (error) {
+                         console.error(`Error finding path ${startPoint.number} -> ${endPoint.number}:`, error);
+                         // Push a failed segment placeholder
+                         calculatedRoutes.push({ from: startPoint.number, to: endPoint.number, path: [], cost: Infinity });
+                         overallSuccess = false;
+                         // Optionally decide whether to stop or continue finding other segments
+                         // reject(error); // Uncomment to stop on first error
+                         // return;
+                    }
+                }
+
+                 if (!overallSuccess) {
+                     console.warn("One or more route segments could not be calculated.");
+                     // Optionally alert the user
+                     // alert("Warning: Could not calculate all route segments. Check impassable areas or map settings.");
+                 }
+                resolve(calculatedRoutes);
+            });
+        }
+
+
+        // --- Image Processing & Cost Calculation ---
+        function updateMapTypeSettings() {
+            const mapType = document.querySelector('input[name="mapType"]:checked').value;
+            const contourValue = document.querySelector('input[name="contours"]:checked').value;
+
+            colorCosts = { // Start fresh each time
+                "white": 3, "yellow": 2, "orange": 3, "light_green": 4, "green": 5,
+                "dark_green": 6, "light_blue": 5, "blue": 5, "olive": 15, "black": 2,
+                "brown1": 10, "brown2": 10, "brown3": 10, "purple1": 100, "purple2": 100,
+                "pink1": 100, "pink2": 100, "red": 100,
+                // Sprint specific defaults added here for clarity
+                "gray": 10, "road_orange": 1, "passable_gray": 1, "pale_road": 1
+            };
+            // Ensure sprint color values exist
+            mainColorValues["gray"] = mainColorValues["gray"] || [138, 138, 138];
+            mainColorValues["road_orange"] = mainColorValues["road_orange"] || [225, 195, 165];
+            mainColorValues["passable_gray"] = mainColorValues["passable_gray"] || [210, 210, 210];
+            mainColorValues["pale_road"] = mainColorValues["pale_road"] || [250, 248, 224];
+
+
+            if (mapType === 'Sprint') {
+                colorCosts["black"] = 100; // Walls/buildings impassable
+                colorCosts["light_blue"] = 100; colorCosts["blue"] = 100; // Water impassable
+                colorCosts["olive"] = 100; colorCosts["green"] = 100; colorCosts["dark_green"] = 100; // Dense veg impassable
+                colorCosts["white"] = 2; colorCosts["yellow"] = 1; colorCosts["orange"] = 2; colorCosts["light_green"] = 3; // Passable areas
+                colorCosts["brown1"] = 1; colorCosts["brown2"] = 1; colorCosts["brown3"] = 1; // Browns likely paved/passable
+            } else { // Forest
+                 colorCosts["black"] = 2; // Trails good
+                 colorCosts["light_blue"] = 4; colorCosts["blue"] = 4; // Water passable but slow
+
+                const contourMultiplier = contourValue === '2.5m' ? 1.5 : 2.5;
+                ["brown1", "brown2", "brown3"].forEach(key => {
+                    colorCosts[key] = 8 * contourMultiplier; // Contours costly
+                });
+            }
+            // console.log("Updated Color Costs:", colorCosts); // DEBUG
+        }
+
+        // --- Async Image Processing ---
+        async function processImage(imageData, width, height) {
+            // This can be slow for large areas. Consider a Web Worker for production.
+            return new Promise(resolve => {
+                const grid = new Array(width);
+                const data = imageData.data;
+                const numPixels = width * height;
+                let processedPixels = 0;
+
+                function processChunk(startY = 0) {
+                    const chunkSize = 100; // Process in rows
+                    const endY = Math.min(startY + chunkSize, height);
+
+                    for (let x = 0; x < width; x++) {
+                         if (!grid[x]) grid[x] = new Array(height); // Initialize column if needed
+                        for (let y = startY; y < endY; y++) {
+                            const idx = (y * width + x) * 4;
+                            const r = data[idx]; const g = data[idx+1]; const b = data[idx+2];
+                            const closestColorName = findClosestColor([r, g, b]);
+                            const colorId = Object.keys(mainColors).find(key => mainColors[key] === closestColorName);
+                            grid[x][y] = parseInt(colorId || 0); // Default to white (0) if not found
+                            processedPixels++;
+                        }
+                    }
+
+                    // Update progress (optional, can add overhead)
+                    // if (processedPixels % 10000 === 0) {
+                    //     progressElement.textContent = `Progress: Analyzing Terrain (${Math.round(processedPixels / numPixels * 100)}%)`;
+                    // }
+
+
+                    if (endY < height) {
+                        // Schedule next chunk without blocking UI thread for too long
+                        setTimeout(() => processChunk(endY), 0);
+                    } else {
+                         // Optional: expandWaterAndTrails(grid, width, height);
+                        resolve(grid);
+                    }
+                }
+                processChunk(); // Start processing
+            });
+        }
+
+        function findClosestColor(pixel) {
+            let minDist = Infinity;
+            let closestColorName = "white";
+            for (const [colorName, colorValue] of Object.entries(mainColorValues)) {
+                const dist = Math.pow(pixel[0] - colorValue[0], 2) +
+                             Math.pow(pixel[1] - colorValue[1], 2) +
+                             Math.pow(pixel[2] - colorValue[2], 2);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestColorName = colorName;
+                }
+            }
+            return closestColorName;
+        }
+
+        function calculateTerrainCosts(terrainGrid, width, height) {
+            const costs = new Array(width);
+            for (let x = 0; x < width; x++) {
+                costs[x] = new Array(height);
+                for (let y = 0; y < height; y++) {
+                    const colorId = terrainGrid[x]?.[y] ?? 0; // Default to white if undefined
+                    const colorName = mainColors[colorId] || "white";
+                    costs[x][y] = colorCosts[colorName] ?? 100; // Default high cost
+                }
+            }
+            return costs;
+        }
+
+
+        // --- A* Pathfinding ---
+        function calculateLowestCostPath(costGrid, startPoint, endPoint, width, height) {
+             // --- A* Pathfinding --- )
+             return new Promise((resolve, reject) => {
+                // Basic Priority Queue implementation
+                class PriorityQueue {
+                    constructor() { this.elements = []; }
+                    isEmpty() { return this.elements.length === 0; }
+                    put(item, priority) {
+                        this.elements.push({ item, priority });
+                        // Simple sort, potentially slow for large grids. Consider a Heap for performance.
+                        this.elements.sort((a, b) => a.priority - b.priority);
+                    }
+                    get() { return this.elements.shift().item; }
+                }
+
+                // Heuristic: Euclidean distance * minimum possible cost (assume 1)
+                function heuristic(a, b) {
+                    return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+                }
+
+                const start = { x: Math.round(startPoint.x), y: Math.round(startPoint.y) };
+                const goal = { x: Math.round(endPoint.x), y: Math.round(endPoint.y) };
+
+                // --- Bounds and Impassable Checks ---
+                if (start.x < 0 || start.x >= width || start.y < 0 || start.y >= height) {
+                    return reject(new Error(`Start point (${start.x},${start.y}) for route ${startPoint.number}->${endPoint.number} is outside processed area bounds (W:${width}, H:${height}).`));
+                }
+                if (goal.x < 0 || goal.x >= width || goal.y < 0 || goal.y >= height) {
+                     return reject(new Error(`End point (${goal.x},${goal.y}) for route ${startPoint.number}->${endPoint.number} is outside processed area bounds (W:${width}, H:${height}).`));
+                }
+                const startCostVal = costGrid[start.x]?.[start.y];
+                const goalCostVal = costGrid[goal.x]?.[goal.y];
+                 if (startCostVal === undefined || startCostVal >= 100) {
+                     console.warn(`A* Start point (${start.x},${start.y}) is impassable or invalid (cost: ${startCostVal}). Route ${startPoint.number}->${endPoint.number}`);
+                     // Returning failure immediately if start is impassable
+                     return resolve({ path: [], cost: Infinity });
+                 }
+                 if (goalCostVal === undefined || goalCostVal >= 100) {
+                      console.warn(`A* Goal point (${goal.x},${goal.y}) is impassable or invalid (cost: ${goalCostVal}). Route ${startPoint.number}->${endPoint.number}`);
+                      // Allow pathfinding to try, might reach adjacent if goal is blocked
+                 }
+                // --- End Checks ---
+
+
+                const frontier = new PriorityQueue();
+                frontier.put(start, 0);
+
+                const cameFrom = {}; // Stores {x,y} objects
+                const costSoFar = {}; // Stores numerical cost
+                const startKey = `${start.x},${start.y}`;
+                cameFrom[startKey] = null;
+                costSoFar[startKey] = 0;
+
+                let exploredCount = 0;
+                const MAX_EXPLORED = width * height * 2; // Safety break
+
+                while (!frontier.isEmpty()) {
+                    exploredCount++;
+                    if (exploredCount > MAX_EXPLORED) {
+                        console.error("A* search exceeded max iterations. Aborting.");
+                        return reject(new Error("Pathfinding took too long. Area might be too complex or large, or goal unreachable."));
+                    }
+
+                    const current = frontier.get(); // {x, y} object
+                    const currentKey = `${current.x},${current.y}`;
+
+                    // Goal check
+                    if (current.x === goal.x && current.y === goal.y) {
+                        break;
+                    }
+
+                    // Explore neighbors
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue; // Skip self
+
+                            const nextX = current.x + dx;
+                            const nextY = current.y + dy;
+
+                            // Bounds check
+                            if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+
+                            const neighborCost = costGrid[nextX]?.[nextY];
+                            // Impassable check (cost >= 100 or undefined)
+                            if (neighborCost === undefined || neighborCost >= 100) continue;
+
+                            const currentPixelCost = costGrid[current.x][current.y];
+                            // Average cost, simpler than integrating over line segment
+                            const moveCostBase = (currentPixelCost + neighborCost) / 2;
+                            // Diagonal penalty
+                            const moveCost = (dx !== 0 && dy !== 0) ? moveCostBase * 1.4142 : moveCostBase;
+
+                            const newCost = costSoFar[currentKey] + moveCost;
+                            const next = { x: nextX, y: nextY };
+                            const nextKey = `${next.x},${next.y}`;
+
+                            if (!(nextKey in costSoFar) || newCost < costSoFar[nextKey]) {
+                                costSoFar[nextKey] = newCost;
+                                const priority = newCost + heuristic(next, goal);
+                                frontier.put(next, priority);
+                                cameFrom[nextKey] = current; // Store the preceding {x,y} object
+                            }
+                        }
+                    }
+                }
+
+                // Reconstruct path
+                const path = [];
+                let currentInPath = goal; // Start from goal
+                const goalKey = `${goal.x},${goal.y}`;
+
+                if (!(goalKey in costSoFar)) { // Check if goal was ever reached
+                    console.warn(`A* could not find a path to goal (${goal.x},${goal.y}) for route ${startPoint.number}->${endPoint.number}`);
+                    resolve({ path: [], cost: Infinity });
+                    return;
+                }
+
+                while (currentInPath) { // Loop until null (start node's predecessor)
+                    path.push(currentInPath);
+                    const currentKey = `${currentInPath.x},${currentInPath.y}`;
+                    currentInPath = cameFrom[currentKey]; // Get the predecessor {x,y} object
+                }
+                path.reverse(); // Path is reconstructed backwards
+
+                // Sanity check: path should start near the start point
+                if (path.length > 0 && (path[0].x !== start.x || path[0].y !== start.y)) {
+                     console.warn("A* path reconstruction might be incorrect. Starts at:", path[0], "Expected:", start);
+                }
+
+                resolve({ path, cost: costSoFar[goalKey] || 0 });
+             });
+
+        }
+
+
+        // --- Reset Functions ---
+        function loadNewMap() {
+             resetAll();
+             fileInput.click();
+        }
+
+        function resetAllState() {
+            controlPoints = []; areaPoints = []; routes = [];
+            isDrawingPolygon = false; isAddingControls = false; isAreaSelected = false;
+            terrainGrid = null; terrainCosts = null;
+            currentScale = 1; translateX = 0; translateY = 0;
+            isDragging = false; dragStartX = 0; dragStartY = 0;
+            croppedAreaOffset = { x: 0, y: 0 };
+
+            updateControlPointsList();
+            progressElement.textContent = "Progress: Waiting to start";
+            routeCostElement.textContent = "Total route cost: N/A";
+            routeTimeElement.textContent = "Estimated time: N/A";
+
+            addControlBtn.disabled = true; resetControlsBtn.disabled = true;
+            findRouteBtn.disabled = true;
+            newMapBtn.disabled = true; resetBtn.disabled = true;
+
+            // Ensure listeners are in default state (only pan should be possible initially)
+             canvas.removeEventListener('click', handleCanvasClick); // Should not be active
+             // Unified handlers manage panning state internally
+
+            // Reset button styles
+             addControlBtn.textContent = "Add Control Point";
+             addControlBtn.classList.remove('active', 'button-warning');
+        }
+
+        function resetAll() {
+             resetAllState();
+             mapImage = null; originalImageWidth = 0; originalImageHeight = 0;
+             ctx.clearRect(0, 0, canvas.width, canvas.height);
+             welcomeScreen.style.display = 'flex';
+             mapContainer.style.display = 'none';
+             controlsPanel.style.display = 'none';
+             updateInstructions("Select a map to begin");
+        }
+
+        // --- Utility ---
+        function updateInstructions(text) {
+            instructions.textContent = text;
+        }
+
+        function setCanvasCursor() {
+             if (isAddingControls) {
+                 canvas.style.cursor = 'crosshair';
+             } else if (isDrawingPolygon) {
+                  canvas.style.cursor = 'crosshair';
+             } else if (isDragging) {
+                 canvas.style.cursor = 'grabbing';
+             } else {
+                 canvas.style.cursor = 'grab'; // Default pan cursor
+             }
+        }
+
+        // --- Run Initialization ---
+        window.addEventListener('load', init);
+
+    </script>
+</body>
+</html>
